@@ -1,0 +1,37 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          python3 -m pip install --quiet ansible-core
+          ansible-galaxy collection install -r requirements.yml -p collections
+
+      - name: Ansible syntax check
+        run: |
+          # reset.yml is skipped: it prompts for confirmation.
+          for playbook in playbooks/site.yml playbooks/03-wait-for-install.yml; do
+            echo "== $playbook"
+            ansible-playbook --syntax-check "$playbook"
+          done
+
+      - name: Shell script syntax
+        run: bash -n scripts/helper-bootstrap.sh
+
+      - name: Vagrantfile syntax
+        run: ruby -c Vagrantfile
+
+      - name: PowerShell script syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/okd-vm.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors; exit 1 }

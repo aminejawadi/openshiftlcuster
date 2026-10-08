@@ -1,0 +1,12 @@
+---
+- name: Restart dnsmasq
+  become: true
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    state: restarted
+
+- name: Restart httpd
+  become: true
+  ansible.builtin.systemd_service:
+    name: httpd
+    state: restarted

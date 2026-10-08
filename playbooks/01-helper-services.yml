@@ -1,0 +1,6 @@
+---
+- name: Configure DNS, HTTP and the firewall on the helper
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - helper_services

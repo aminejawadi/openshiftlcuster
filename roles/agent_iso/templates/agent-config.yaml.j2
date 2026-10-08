@@ -1,0 +1,36 @@
+apiVersion: v1beta1
+kind: AgentConfig
+metadata:
+  name: {{ cluster_name }}
+# On a single node, the node itself runs the installation.
+rendezvousIP: {{ sno_ip }}
+hosts:
+  - hostname: {{ sno_hostname }}
+    role: master
+    interfaces:
+      - name: {{ sno_interface }}
+        macAddress: "{{ sno_mac | lower }}"
+    networkConfig:
+      interfaces:
+        - name: {{ sno_interface }}
+          type: ethernet
+          state: up
+          mac-address: "{{ sno_mac | lower }}"
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: {{ sno_ip }}
+                prefix-length: {{ network_prefix }}
+          ipv6:
+            enabled: false
+      dns-resolver:
+        config:
+          server:
+            - {{ helper_ip }}
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: {{ gateway_ip }}
+            next-hop-interface: {{ sno_interface }}
+            table-id: 254

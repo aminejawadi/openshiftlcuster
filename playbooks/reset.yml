@@ -1,0 +1,29 @@
+---
+# Removes the generated install files and the published ISO so you can start
+# over. Delete the VM on Windows with: .\create-okd-vm.ps1 -Destroy
+- name: Reset the OKD install on the helper
+  hosts: localhost
+  gather_facts: false
+  vars_prompt:
+    - name: confirm
+      prompt: "Delete the install directory (kubeconfig, kubeadmin password, ISO)? Type yes"
+      private: false
+  tasks:
+    - name: Check confirmation
+      ansible.builtin.assert:
+        that: confirm == 'yes'
+        fail_msg: Nothing was deleted.
+
+    - name: Remove the install directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}"
+        state: absent
+
+    - name: Remove published files
+      become: true
+      ansible.builtin.file:
+        path: "{{ web_root }}/{{ item }}"
+        state: absent
+      loop:
+        - agent.x86_64.iso
+        - create-okd-vm.ps1

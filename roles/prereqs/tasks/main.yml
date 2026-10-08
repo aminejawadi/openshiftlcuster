@@ -1,0 +1,68 @@
+---
+- name: Check this is an EL9/EL10 or Fedora helper
+  ansible.builtin.assert:
+    that: ansible_facts.pkg_mgr == 'dnf'
+    fail_msg: "Run this on a Rocky/Alma/RHEL/CentOS Stream 9+ or Fedora helper VM."
+
+- name: Check the helper has the expected IP
+  ansible.builtin.assert:
+    that: helper_ip in ansible_facts.all_ipv4_addresses
+    fail_msg: >-
+      This VM's addresses are {{ ansible_facts.all_ipv4_addresses }}, but helper_ip is
+      {{ helper_ip }}. Give the helper that static IP, or fix vmnet_subnet in
+      inventory/group_vars/all.yml.
+
+- name: Install helper packages
+  become: true
+  ansible.builtin.dnf:
+    name:
+      - dnsmasq
+      - httpd
+      - firewalld
+      - nmstate          # openshift-install validates the static network config with it
+      - bind-utils
+      - jq
+      - tar
+      - gzip
+    state: present
+
+- name: Create an SSH key for logging in to the node
+  ansible.builtin.command: ssh-keygen -t ed25519 -N "" -C "okd-{{ cluster_name }}" -f {{ ssh_key_file }}
+  args:
+    creates: "{{ ssh_key_file }}"
+
+- name: Create working directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+  loop:
+    - "{{ bin_dir }}"
+    - "{{ install_dir }}"
+
+- name: Download openshift-install and oc for {{ okd_version }}
+  ansible.builtin.get_url:
+    url: "{{ okd_download_url }}/{{ item }}-linux-{{ okd_version }}.tar.gz"
+    dest: "{{ bin_dir }}/{{ item }}-linux-{{ okd_version }}.tar.gz"
+    mode: "0644"
+  loop:
+    - openshift-install
+    - openshift-client
+
+- name: Unpack openshift-install and oc
+  ansible.builtin.unarchive:
+    src: "{{ bin_dir }}/{{ item }}-linux-{{ okd_version }}.tar.gz"
+    dest: "{{ bin_dir }}"
+    remote_src: true
+  loop:
+    - openshift-install
+    - openshift-client
+
+- name: Report installer version
+  ansible.builtin.command: "{{ bin_dir }}/openshift-install version"
+  register: _version
+  changed_when: false
+
+- name: Show installer version
+  ansible.builtin.debug:
+    msg: "{{ _version.stdout_lines }}"

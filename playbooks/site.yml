@@ -1,0 +1,9 @@
+---
+# Prepares the helper and builds the ISO. After this, create the VM on Windows
+# with the generated script, then run 03-wait-for-install.yml.
+- name: Prerequisites
+  ansible.builtin.import_playbook: 00-prereqs.yml
+- name: Helper services
+  ansible.builtin.import_playbook: 01-helper-services.yml
+- name: Agent ISO
+  ansible.builtin.import_playbook: 02-agent-iso.yml

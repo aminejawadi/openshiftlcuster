@@ -1,0 +1,79 @@
+---
+- name: Check for an existing agent ISO
+  ansible.builtin.stat:
+    path: "{{ install_dir }}/agent.x86_64.iso"
+  register: _iso
+
+- name: Keep the existing ISO
+  ansible.builtin.debug:
+    msg: >-
+      {{ install_dir }}/agent.x86_64.iso already exists and was kept. Its
+      certificates expire 24h after it was built; rerun with
+      -e regenerate_iso=true to rebuild it (this also creates a new kubeconfig).
+  when:
+    - _iso.stat.exists
+    - not (regenerate_iso | bool)
+
+- name: Build the agent ISO
+  when: not _iso.stat.exists or (regenerate_iso | bool)
+  block:
+    - name: Clear the install directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}"
+        state: absent
+
+    - name: Recreate the install directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}/configs"
+        state: directory
+        mode: "0750"
+
+    - name: Render install-config.yaml and agent-config.yaml
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "{{ install_dir }}/{{ item }}"
+        mode: "0600"
+      loop:
+        - install-config.yaml
+        - agent-config.yaml
+
+    - name: Keep copies of the configs (the installer consumes them)
+      ansible.builtin.copy:
+        src: "{{ install_dir }}/{{ item }}"
+        dest: "{{ install_dir }}/configs/{{ item }}"
+        remote_src: true
+        mode: "0600"
+      loop:
+        - install-config.yaml
+        - agent-config.yaml
+
+    - name: Create the agent ISO (downloads the CoreOS image, takes a few minutes)
+      ansible.builtin.command: >-
+        {{ bin_dir }}/openshift-install agent create image
+        --dir {{ install_dir }} --log-level info
+      changed_when: true
+
+- name: Publish the ISO on the helper web server
+  become: true
+  ansible.builtin.copy:
+    src: "{{ install_dir }}/agent.x86_64.iso"
+    dest: "{{ web_root }}/agent.x86_64.iso"
+    mode: "0644"
+    setype: httpd_sys_content_t
+
+- name: Publish the Windows VM script
+  become: true
+  ansible.builtin.template:
+    src: create-okd-vm.ps1.j2
+    dest: "{{ web_root }}/create-okd-vm.ps1"
+    mode: "0644"
+    setype: httpd_sys_content_t
+    newline_sequence: "\r\n"
+
+- name: Next step
+  ansible.builtin.debug:
+    msg:
+      - "On Windows, open PowerShell as Administrator and run:"
+      - "  iwr http://{{ helper_ip }}:{{ http_port }}/okd/create-okd-vm.ps1 -OutFile $env:TEMP\\create-okd-vm.ps1"
+      - "  powershell -ExecutionPolicy Bypass -File $env:TEMP\\create-okd-vm.ps1"
+      - "Then run: ansible-playbook playbooks/03-wait-for-install.yml"

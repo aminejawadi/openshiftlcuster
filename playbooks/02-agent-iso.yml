@@ -1,0 +1,6 @@
+---
+- name: Build the agent ISO and the Windows VM script
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - agent_iso

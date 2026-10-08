@@ -1,0 +1,6 @@
+---
+- name: Install helper packages and download the OKD installer
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - prereqs

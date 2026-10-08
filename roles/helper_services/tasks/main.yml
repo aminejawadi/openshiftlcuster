@@ -1,0 +1,72 @@
+---
+- name: Write dnsmasq configuration
+  become: true
+  ansible.builtin.template:
+    src: dnsmasq.conf.j2
+    dest: /etc/dnsmasq.conf
+    mode: "0644"
+    validate: dnsmasq --test --conf-file=%s
+  notify: Restart dnsmasq
+
+- name: Let the helper itself resolve the cluster API
+  become: true
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} OKD {{ cluster_domain }}"
+    block: |
+      {{ sno_ip }} api.{{ cluster_domain }} api-int.{{ cluster_domain }} {{ sno_hostname }}.{{ cluster_domain }}
+      {{ sno_ip }} console-openshift-console.apps.{{ cluster_domain }} oauth-openshift.apps.{{ cluster_domain }}
+
+- name: Move httpd to port {{ http_port }}
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^Listen '
+    line: "Listen {{ http_port }}"
+  notify: Restart httpd
+
+- name: Create the web root for the ISO and Windows script
+  become: true
+  ansible.builtin.file:
+    path: "{{ web_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Start dnsmasq, httpd and firewalld
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [dnsmasq, httpd, firewalld]
+
+- name: Open DNS and HTTP in the firewall
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 53/udp
+    - 53/tcp
+    - "{{ http_port }}/tcp"
+
+- name: Apply configuration changes now
+  ansible.builtin.meta: flush_handlers
+
+- name: Check cluster names resolve through the helper DNS
+  ansible.builtin.command: "dig +short @{{ helper_ip }} {{ item }}"
+  register: _dig
+  changed_when: false
+  failed_when: _dig.stdout | trim != sno_ip
+  loop:
+    - "api.{{ cluster_domain }}"
+    - "api-int.{{ cluster_domain }}"
+    - "console-openshift-console.apps.{{ cluster_domain }}"
+
+- name: Check the helper DNS forwards other names
+  ansible.builtin.command: "dig +short @{{ helper_ip }} quay.io"
+  register: _dig_ext
+  changed_when: false
+  failed_when: _dig_ext.stdout | trim | length == 0

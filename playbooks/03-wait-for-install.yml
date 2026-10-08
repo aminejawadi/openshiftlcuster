@@ -1,0 +1,47 @@
+---
+- name: Follow the installation to the end
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: Wait for the node to answer on the API port
+      ansible.builtin.wait_for:
+        host: "{{ sno_ip }}"
+        port: 6443
+        timeout: 2700
+        sleep: 15
+
+    - name: Wait for bootstrap to complete (up to 60 minutes)
+      ansible.builtin.command: >-
+        {{ bin_dir }}/openshift-install agent wait-for bootstrap-complete
+        --dir {{ install_dir }} --log-level info
+      async: 3600
+      poll: 30
+      changed_when: false
+
+    - name: Wait for the installation to complete (up to 90 minutes)
+      ansible.builtin.command: >-
+        {{ bin_dir }}/openshift-install agent wait-for install-complete
+        --dir {{ install_dir }} --log-level info
+      async: 5400
+      poll: 30
+      changed_when: false
+
+    - name: Show cluster status
+      ansible.builtin.command: oc get clusterversion,nodes
+      environment: "{{ oc_env }}"
+      register: _status
+      changed_when: false
+
+    - name: Read the kubeadmin password
+      ansible.builtin.slurp:
+        src: "{{ install_dir }}/auth/kubeadmin-password"
+      register: _password
+
+    - name: Cluster access details
+      ansible.builtin.debug:
+        msg:
+          - "{{ _status.stdout_lines }}"
+          - "Console:  https://console-openshift-console.apps.{{ cluster_domain }}"
+          - "User:     kubeadmin"
+          - "Password: {{ _password.content | b64decode | trim }}"
+          - "CLI:      export KUBECONFIG={{ install_dir }}/auth/kubeconfig"

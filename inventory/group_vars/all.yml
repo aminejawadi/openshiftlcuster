@@ -1,0 +1,86 @@
+---
+# ---------------------------------------------------------------------------
+# Cluster identity
+# ---------------------------------------------------------------------------
+cluster_name: okd
+# ".internal" is reserved for private networks, so it never clashes with real DNS.
+base_domain: lab.internal
+cluster_domain: "{{ cluster_name }}.{{ base_domain }}"
+
+# ---------------------------------------------------------------------------
+# OKD release (https://github.com/okd-project/okd/releases)
+# ---------------------------------------------------------------------------
+okd_version: "5.0.0-okd-scos.1"
+okd_download_url: "https://github.com/okd-project/okd/releases/download/{{ okd_version }}"
+
+# OKD does not need a Red Hat pull secret; this placeholder is the documented one.
+pull_secret: '{"auths":{"fake":{"auth":"aWQ6cGFzcwo="}}}'
+
+# ---------------------------------------------------------------------------
+# VMware Workstation NAT network (VMnet8).
+# Detected automatically from the helper's own address, so normally you don't
+# touch it. To force it, replace the expression with e.g. "192.168.150".
+# VMware uses .1 for your PC, .2 for the NAT gateway/DNS and .128-.254 for DHCP,
+# so the static addresses below stay out of the way.
+# ---------------------------------------------------------------------------
+vmnet_subnet: "{{ ansible_facts.default_ipv4.address.split('.')[:3] | join('.') }}"
+network_prefix: 24
+network_cidr: "{{ vmnet_subnet }}.0/{{ network_prefix }}"
+gateway_ip: "{{ vmnet_subnet }}.2"
+helper_ip: "{{ vmnet_subnet }}.10"   # the helper answers here (Vagrant adds it for you)
+sno_ip: "{{ vmnet_subnet }}.50"
+
+# ---------------------------------------------------------------------------
+# The OKD VM. Sized for a 64 GB PC with a 6-core / 12-thread CPU
+# (Ryzen 5 7500F). Single-node minimums are 8 vCPU, 16 GB RAM, 120 GB disk.
+# ---------------------------------------------------------------------------
+vm_name: okd-sno
+sno_hostname: sno
+sno_vcpus: 8
+sno_memory_mb: 32768
+sno_disk_gb: 150
+# Fixed MAC (VMware's static range is 00:50:56:00:00:00-00:50:56:3F:FF:FF)
+# so the installer can match the static IP config to the VM's NIC.
+sno_mac: "00:50:56:2A:00:50"
+# vmxnet3 in PCI slot 160 is named ens160 by the OS.
+sno_interface: ens160
+
+# ---------------------------------------------------------------------------
+# Cluster networking
+# ---------------------------------------------------------------------------
+network_type: OVNKubernetes
+cluster_network_cidr: 10.128.0.0/14
+cluster_network_host_prefix: 23
+service_network_cidr: 172.30.0.0/16
+
+# ---------------------------------------------------------------------------
+# Helper web server (serves the ISO and the Windows script)
+# ---------------------------------------------------------------------------
+http_port: 8080
+web_root: /var/www/html/okd
+
+# ---------------------------------------------------------------------------
+# Local paths (on the helper). Vagrant overrides bin_dir and install_dir so the
+# installer works on the VM's own disk rather than the shared folder.
+# ---------------------------------------------------------------------------
+project_root: "{{ playbook_dir }}/.."
+bin_dir: "{{ project_root }}/bin"
+install_dir: "{{ project_root }}/install/{{ cluster_name }}"
+ssh_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+oc_env:
+  KUBECONFIG: "{{ install_dir }}/auth/kubeconfig"
+  PATH: "{{ bin_dir }}:{{ lookup('env', 'PATH') }}"
+
+# Names written to the Windows hosts file so your browser can reach the cluster.
+# Add a line here for each route you create, then rerun 02-agent-iso.yml and
+# the script with -UpdateHosts.
+windows_host_names:
+  - "api.{{ cluster_domain }}"
+  - "console-openshift-console.apps.{{ cluster_domain }}"
+  - "oauth-openshift.apps.{{ cluster_domain }}"
+  - "downloads-openshift-console.apps.{{ cluster_domain }}"
+  - "canary-openshift-ingress-canary.apps.{{ cluster_domain }}"
+  - "default-route-openshift-image-registry.apps.{{ cluster_domain }}"
+
+# The ISO's certificates expire 24h after it is built. Set true to rebuild it.
+regenerate_iso: false
