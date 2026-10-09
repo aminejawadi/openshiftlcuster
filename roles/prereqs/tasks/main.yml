@@ -40,6 +40,13 @@
     - "{{ bin_dir }}"
     - "{{ install_dir }}"
 
+- name: About the next step
+  ansible.builtin.debug:
+    msg: >-
+      Downloading openshift-install (~465 MB) and oc (~45 MB) from GitHub. Ansible
+      shows no progress, so this can look stuck for several minutes on a slow
+      connection. To watch it: vagrant ssh -c "find ~/.ansible/tmp -type f -size +1M -exec ls -lh {} \;"
+
 - name: Download openshift-install and oc for {{ okd_version }}
   ansible.builtin.get_url:
     url: "{{ okd_download_url }}/{{ item }}-linux-{{ okd_version }}.tar.gz"

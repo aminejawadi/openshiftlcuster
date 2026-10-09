@@ -47,6 +47,12 @@
         - install-config.yaml
         - agent-config.yaml
 
+    - name: About the next step
+      ansible.builtin.debug:
+        msg: >-
+          Building the agent ISO. The installer first downloads the CoreOS image
+          (~1 GB) and shows no progress, so this can take 5-20 minutes.
+
     - name: Create the agent ISO (downloads the CoreOS image, takes a few minutes)
       ansible.builtin.command: >-
         {{ bin_dir }}/openshift-install agent create image
