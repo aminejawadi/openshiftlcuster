@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs inside the helper VM (as root) during "vagrant up".
 # - installs Ansible and the one collection the playbooks need
-# - adds the fixed helper address (<VMnet8 subnet>.10) next to the DHCP address
-#   Vagrant uses, so DNS and the ISO web server are always at a known IP.
+# - VMware only: adds the fixed helper address (<VMnet8 subnet>.10) next to the
+#   DHCP address Vagrant uses, so DNS and the ISO web server are at a known IP.
+#   On VirtualBox, Vagrant's private_network already gives the helper that address.
 set -euo pipefail
 
 HELPER_OCTET="${HELPER_OCTET:-10}"
@@ -10,6 +11,13 @@ HELPER_OCTET="${HELPER_OCTET:-10}"
 echo "==> Installing Ansible"
 dnf -y -q install ansible-core
 ansible-galaxy collection install ansible.posix -p /usr/share/ansible/collections >/dev/null
+
+virt="$(systemd-detect-virt || true)"
+if [ "$virt" = "oracle" ]; then
+  echo "==> VirtualBox detected: lab address comes from Vagrant's private_network"
+  ip -4 -o addr show | awk '{print "    " $2 ": " $4}'
+  exit 0
+fi
 
 echo "==> Adding the fixed helper address"
 dev="$(ip -4 route show default | awk '{print $5; exit}')"

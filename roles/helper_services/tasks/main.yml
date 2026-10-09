@@ -52,6 +52,10 @@
     - 53/tcp
     - "{{ http_port }}/tcp"
 
+- name: Route the OKD VM to the internet (VirtualBox host-only network)
+  ansible.builtin.include_tasks: router.yml
+  when: hypervisor == 'virtualbox'
+
 - name: Apply configuration changes now
   ansible.builtin.meta: flush_handlers
 

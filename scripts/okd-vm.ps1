@@ -1,16 +1,18 @@
 <#
   Host-side wrapper used by the Vagrantfile triggers (you can also run it by hand).
-  Finds the helper on the VMnet8 network, downloads the create-okd-vm.ps1 that
-  Ansible generated there, and runs it. A copy is kept in .okd\ so -Destroy
-  still works after the helper is gone.
+  Finds the helper, downloads the create-okd-vm.ps1 that Ansible generated there
+  (for VirtualBox or VMware, whichever the helper runs on), and runs it.
+  A copy is kept in .okd\ so -Destroy still works after the helper is gone.
 
-    .\scripts\okd-vm.ps1            # create (or start) the OKD VM
-    .\scripts\okd-vm.ps1 -Destroy   # delete the OKD VM and its hosts entries
+    .\scripts\okd-vm.ps1                          # create (or start) the OKD VM
+    .\scripts\okd-vm.ps1 -Destroy                 # delete the OKD VM and its hosts entries
+    .\scripts\okd-vm.ps1 -HelperIp 192.168.56.10  # skip auto-detection
 #>
 #Requires -RunAsAdministrator
 [CmdletBinding()]
 param(
     [switch]$Destroy,
+    [string]$HelperIp,
     [int]$HelperOctet = 10,   # must match helper_ip in inventory/group_vars/all.yml
     [int]$Port = 8080         # must match http_port
 )
@@ -31,16 +33,34 @@ if ($Destroy) {
     return
 }
 
-$vmnet8 = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-          Where-Object { $_.InterfaceAlias -like '*VMnet8*' } |
-          Select-Object -First 1
-if (-not $vmnet8) {
-    throw 'No "VMware Network Adapter VMnet8" found. Enable NAT (VMnet8) in the Virtual Network Editor.'
+# Candidate helper addresses: <subnet>.10 on every VirtualBox host-only and
+# VMware VMnet adapter on this PC. The first one that serves the script wins.
+if ($HelperIp) {
+    $candidates = @($HelperIp)
+} else {
+    $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.InterfaceAlias -like '*VirtualBox*' -or $_.InterfaceAlias -like '*VMnet*' } |
+        ForEach-Object { (($_.IPAddress -split '\.')[0..2] -join '.') + ".$HelperOctet" } |
+        Select-Object -Unique)
+    if (-not $candidates) {
+        throw 'No VirtualBox host-only or VMware VMnet adapter found on this PC.'
+    }
 }
 
-$Subnet = ($vmnet8.IPAddress -split '\.')[0..2] -join '.'
-$Url    = "http://$Subnet.${HelperOctet}:${Port}/okd/create-okd-vm.ps1"
+$found = $null
+foreach ($ip in $candidates) {
+    $url = "http://${ip}:${Port}/okd/create-okd-vm.ps1"
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $Script -UseBasicParsing -TimeoutSec 5
+        $found = $url
+        break
+    } catch {
+        Write-Verbose "No helper at $url"
+    }
+}
+if (-not $found) {
+    throw "The helper did not answer on any of: $($candidates -join ', ') (port $Port). Is it running and provisioned?"
+}
 
-Write-Host "Fetching $Url"
-Invoke-WebRequest -Uri $Url -OutFile $Script -UseBasicParsing
+Write-Host "Using $found"
 & $Script

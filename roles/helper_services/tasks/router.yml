@@ -1,0 +1,82 @@
+---
+# VirtualBox only. The OKD VM sits on a host-only network, which has no route
+# to the internet, so the helper forwards its traffic out through the helper's
+# own NAT adapter:
+#
+#   OKD VM ──host-only──▶ helper (lab NIC, zone "trusted")
+#                          └─▶ helper (NAT NIC, zone "public", masquerade) ──▶ internet
+
+- name: Find the interface that holds the helper address
+  ansible.builtin.command: ip -4 -o addr show to {{ helper_ip }}/32
+  register: _lab_addr
+  changed_when: false
+
+- name: Record the lab and internet interfaces
+  ansible.builtin.set_fact:
+    lab_interface: "{{ (_lab_addr.stdout.split() + ['', ''])[1] }}"
+    wan_interface: "{{ ansible_facts.default_ipv4.interface | default('') }}"
+
+- name: Check both interfaces were found
+  ansible.builtin.assert:
+    that:
+      - lab_interface | length > 0
+      - wan_interface | length > 0
+      - lab_interface != wan_interface
+    fail_msg: >-
+      Expected the helper address {{ helper_ip }} on a host-only interface and a
+      default route through a separate NAT interface; found lab='{{ lab_interface }}'
+      and internet='{{ wan_interface }}'. With VirtualBox the helper needs two
+      adapters: NAT (adapter 1) and host-only {{ lab_subnet }}.0/24 (adapter 2).
+
+- name: Enable IP forwarding
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-okd-lab.conf
+    state: present
+    reload: true
+
+- name: Trust the lab network (the OKD VM and your PC)
+  become: true
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: "{{ lab_interface }}"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Masquerade traffic leaving through the NAT interface
+  become: true
+  ansible.posix.firewalld:
+    zone: public
+    masquerade: true
+    permanent: true
+    immediate: true
+    state: enabled
+
+# A firewalld policy makes the trusted -> public forwarding explicit,
+# whatever the zone defaults are on this firewalld version.
+- name: Check for the forwarding policy
+  become: true
+  ansible.builtin.command: firewall-cmd --permanent --info-policy=okd-lab-egress
+  register: _policy
+  changed_when: false
+  failed_when: false
+
+- name: Create the forwarding policy
+  become: true
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - firewall-cmd --permanent --new-policy=okd-lab-egress
+    - firewall-cmd --permanent --policy=okd-lab-egress --add-ingress-zone=trusted
+    - firewall-cmd --permanent --policy=okd-lab-egress --add-egress-zone=public
+    - firewall-cmd --permanent --policy=okd-lab-egress --set-target=ACCEPT
+  when: _policy.rc != 0
+  changed_when: true
+
+- name: Load the forwarding policy
+  become: true
+  ansible.builtin.command: firewall-cmd --reload
+  when: _policy.rc != 0
+  changed_when: true

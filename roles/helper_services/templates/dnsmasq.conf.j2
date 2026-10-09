@@ -1,14 +1,14 @@
 # {{ ansible_managed }}
 # DNS for the OKD cluster {{ cluster_domain }}.
 # On a single node, the API and the apps ingress both live on the node itself,
-# so no load balancer is needed. Other names go to VMware's NAT DNS.
+# so no load balancer is needed. Other names go to the helper's own upstream DNS.
 
 listen-address={{ helper_ip }}
 bind-interfaces
 no-resolv
 no-hosts
 domain-needed
-server={{ gateway_ip }}
+server={{ upstream_dns }}
 cache-size=1000
 
 host-record=api.{{ cluster_domain }},{{ sno_ip }}

@@ -17,18 +17,36 @@ okd_download_url: "https://github.com/okd-project/okd/releases/download/{{ okd_v
 pull_secret: '{"auths":{"fake":{"auth":"aWQ6cGFzcwo="}}}'
 
 # ---------------------------------------------------------------------------
-# VMware Workstation NAT network (VMnet8).
-# Detected automatically from the helper's own address, so normally you don't
-# touch it. To force it, replace the expression with e.g. "192.168.150".
-# VMware uses .1 for your PC, .2 for the NAT gateway/DNS and .128-.254 for DHCP,
-# so the static addresses below stay out of the way.
+# Hypervisor: detected from the helper VM itself (virtualbox or vmware).
+# Force it with -e hypervisor=virtualbox or -e hypervisor=vmware.
 # ---------------------------------------------------------------------------
-vmnet_subnet: "{{ ansible_facts.default_ipv4.address.split('.')[:3] | join('.') }}"
+hypervisor: "{{ 'virtualbox' if (ansible_facts.virtualization_type | default('') | lower) == 'virtualbox' else 'vmware' }}"
+
+# ---------------------------------------------------------------------------
+# Lab network: the network the helper and the OKD VM share, and that your PC
+# can reach to open the console.
+#
+# VirtualBox: a host-only network (default 192.168.56.0/24, your PC is .1).
+#   Host-only has no internet, so the helper also routes the OKD VM out
+#   through its own NAT adapter. Must match VBOX_SUBNET in the Vagrantfile.
+# VMware: the NAT network VMnet8, detected from the helper's own address.
+#   VMware uses .1 for your PC, .2 for its NAT router/DNS, .128-.254 for DHCP.
+# ---------------------------------------------------------------------------
+virtualbox_subnet: "192.168.56"
+lab_subnet: >-
+  {{ virtualbox_subnet if hypervisor == 'virtualbox'
+     else ansible_facts.default_ipv4.address.split('.')[:3] | join('.') }}
 network_prefix: 24
-network_cidr: "{{ vmnet_subnet }}.0/{{ network_prefix }}"
-gateway_ip: "{{ vmnet_subnet }}.2"
-helper_ip: "{{ vmnet_subnet }}.10"   # the helper answers here (Vagrant adds it for you)
-sno_ip: "{{ vmnet_subnet }}.50"
+network_cidr: "{{ lab_subnet }}.0/{{ network_prefix }}"
+helper_ip: "{{ lab_subnet }}.10"   # Vagrant sets this up; by hand, give the helper this IP
+sno_ip: "{{ lab_subnet }}.50"
+# Default gateway for the OKD VM: the helper on VirtualBox, VMware's NAT router on VMware.
+gateway_ip: "{{ helper_ip if hypervisor == 'virtualbox' else lab_subnet ~ '.2' }}"
+# Where the helper's dnsmasq sends names it doesn't own: the helper's own resolver
+# (VirtualBox NAT DNS 10.0.2.3, or VMware's .2).
+upstream_dns: >-
+  {{ (ansible_facts.dns.nameservers | default([])
+      | reject('in', [helper_ip, '127.0.0.1', '::1']) | list + [lab_subnet ~ '.2']) | first }}
 
 # ---------------------------------------------------------------------------
 # The OKD VM. Sized for a 64 GB PC with a 6-core / 12-thread CPU
@@ -39,11 +57,11 @@ sno_hostname: sno
 sno_vcpus: 8
 sno_memory_mb: 32768
 sno_disk_gb: 150
-# Fixed MAC (VMware's static range is 00:50:56:00:00:00-00:50:56:3F:FF:FF)
-# so the installer can match the static IP config to the VM's NIC.
-sno_mac: "00:50:56:2A:00:50"
-# vmxnet3 in PCI slot 160 is named ens160 by the OS.
-sno_interface: ens160
+# Fixed MAC so the installer can match the static IP config to the VM's NIC.
+# VirtualBox's prefix is 08:00:27; VMware's static range is 00:50:56:00:00:00-3F:FF:FF.
+sno_mac: "{{ '08:00:27:2A:00:50' if hypervisor == 'virtualbox' else '00:50:56:2A:00:50' }}"
+# First NIC name inside the VM: PCI slot 3 on VirtualBox, slot 160 (vmxnet3) on VMware.
+sno_interface: "{{ 'enp0s3' if hypervisor == 'virtualbox' else 'ens160' }}"
 
 # ---------------------------------------------------------------------------
 # Cluster networking

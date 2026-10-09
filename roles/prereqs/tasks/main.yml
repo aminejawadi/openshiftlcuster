@@ -9,7 +9,7 @@
     that: helper_ip in ansible_facts.all_ipv4_addresses
     fail_msg: >-
       This VM's addresses are {{ ansible_facts.all_ipv4_addresses }}, but helper_ip is
-      {{ helper_ip }}. Give the helper that static IP, or fix vmnet_subnet in
+      {{ helper_ip }}. Give the helper that static IP, or fix lab_subnet in
       inventory/group_vars/all.yml.
 
 - name: Install helper packages

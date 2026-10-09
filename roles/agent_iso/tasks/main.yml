@@ -61,10 +61,10 @@
     mode: "0644"
     setype: httpd_sys_content_t
 
-- name: Publish the Windows VM script
+- name: Publish the Windows VM script for {{ hypervisor }}
   become: true
   ansible.builtin.template:
-    src: create-okd-vm.ps1.j2
+    src: "create-okd-vm-{{ hypervisor }}.ps1.j2"
     dest: "{{ web_root }}/create-okd-vm.ps1"
     mode: "0644"
     setype: httpd_sys_content_t
