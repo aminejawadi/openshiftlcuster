@@ -65,6 +65,24 @@
     - openshift-install
     - openshift-client
 
+- name: Check oc and openshift-install were unpacked
+  ansible.builtin.stat:
+    path: "{{ bin_dir }}/{{ item }}"
+  register: _tools
+  loop: [oc, openshift-install]
+  failed_when: not _tools.stat.exists
+
+# openshift-install runs `oc` itself while building the ISO, and people expect
+# to type `oc` in `vagrant ssh`, so make both available on the default PATH.
+- name: Make oc, kubectl and openshift-install available everywhere
+  become: true
+  ansible.builtin.file:
+    src: "{{ bin_dir }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+    force: true
+  loop: [oc, kubectl, openshift-install]
+
 - name: Report installer version
   ansible.builtin.command: "{{ bin_dir }}/openshift-install version"
   register: _version

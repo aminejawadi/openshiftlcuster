@@ -103,9 +103,10 @@ newer, plus one hypervisor:
 
 ### Run it
 
-Open **PowerShell as Administrator** (needed to edit the hosts file) in
-this folder. Use PowerShell rather than Git Bash: Git Bash usually isn't
-elevated, so the hosts file can't be updated.
+Open a terminal in this folder (PowerShell, or Git Bash). When the OKD VM is
+created, Windows asks once for administrator rights: the script needs them to
+add the cluster names to the hosts file. Approve the prompt; that step runs in
+its own window and its output is shown back in your terminal.
 
 ```powershell
 vagrant up                              # VirtualBox (the default)
@@ -128,7 +129,7 @@ You don't edit anything for a default setup. Settings are in
 Useful commands:
 
 ```powershell
-vagrant ssh                                   # shell on the helper (oc is in ~/okd/bin)
+vagrant ssh                                   # shell on the helper (oc is ready to use)
 vagrant provision --provision-with wait       # follow the install again
 vagrant halt                                  # stop the helper (see "Day-to-day")
 vagrant destroy                               # delete the OKD VM, hosts entries and helper
@@ -139,7 +140,7 @@ $env:OKD_HELPER_BOX = "bento/almalinux-9"     # use another box if Rocky is unav
 On the helper, use the cluster with:
 
 ```bash
-export KUBECONFIG=~/okd/install/auth/kubeconfig PATH=~/okd/bin:$PATH
+export KUBECONFIG=~/okd/install/auth/kubeconfig
 oc get nodes
 ```
 
