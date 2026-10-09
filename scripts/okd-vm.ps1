@@ -101,6 +101,12 @@ function Invoke-Main {
     & $Script
 }
 
+# Nothing to delete: don't ask for administrator rights just to say so.
+if ($Destroy -and -not (Test-Path $Script)) {
+    Write-Host 'No saved create-okd-vm.ps1 found, so there is no OKD VM to remove.'
+    exit 0
+}
+
 if (-not (Test-Admin)) { Invoke-Elevated }
 
 if ($LogFile) { Start-Transcript -Path $LogFile -Force | Out-Null }
