@@ -20,6 +20,14 @@
 #   OKD_HELPER_BOX=bento/almalinux-9   use another EL9 box
 #   OKD_AUTO_WAIT=0                    don't block "vagrant up" until the cluster is ready
 
+# Use VirtualBox unless VMware is asked for. Without this, a PC with Hyper-V
+# enabled (or VAGRANT_DEFAULT_PROVIDER=hyperv) silently gets a Hyper-V helper,
+# which this lab doesn't support.
+SUPPORTED_PROVIDERS = %w[virtualbox vmware_desktop].freeze
+unless SUPPORTED_PROVIDERS.include?(ENV["VAGRANT_DEFAULT_PROVIDER"])
+  ENV["VAGRANT_DEFAULT_PROVIDER"] = "virtualbox"
+end
+
 HELPER_BOX  = ENV.fetch("OKD_HELPER_BOX", "bento/rockylinux-9")
 AUTO_WAIT   = ENV.fetch("OKD_AUTO_WAIT", "1") != "0"
 VBOX_SUBNET = "192.168.56"                   # must match virtualbox_subnet in all.yml
@@ -63,6 +71,26 @@ Vagrant.configure("2") do |config|
       v.vmx["displayName"]   = "okd-helper"
       v.vmx["memsize"]       = "4096"
       v.vmx["numvcpus"]      = "2"
+    end
+
+    # Stop early, with instructions, if the helper would run on another provider
+    # (e.g. Hyper-V via --provider=hyperv or a helper created by an earlier run).
+    helper.trigger.before [:up, :provision, :reload] do |t|
+      t.name = "Check the provider"
+      t.ruby do |_env, machine|
+        provider = machine.provider_name.to_s
+        unless SUPPORTED_PROVIDERS.include?(provider)
+          machine.ui.error(<<~MSG)
+            This lab runs on VirtualBox or VMware Workstation, but Vagrant picked '#{provider}'.
+            Fix it, then try again:
+              1. vagrant destroy -f            (removes the #{provider} helper)
+              2. delete the .vagrant folder in this project
+              3. install VirtualBox 7, turn Hyper-V off and reboot (README: "Before you start")
+              4. vagrant up --provider=virtualbox
+          MSG
+          abort
+        end
+      end
     end
 
     # 1. Ansible (+ the fixed helper IP on VMware)

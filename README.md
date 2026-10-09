@@ -104,7 +104,8 @@ newer, plus one hypervisor:
 ### Run it
 
 Open **PowerShell as Administrator** (needed to edit the hosts file) in
-this folder:
+this folder. Use PowerShell rather than Git Bash: Git Bash usually isn't
+elevated, so the hosts file can't be updated.
 
 ```powershell
 vagrant up                              # VirtualBox (the default)
@@ -255,6 +256,7 @@ VMnet8 subnet.
 | Symptom | What to check |
 |---|---|
 | VirtualBox VM is very slow, green turtle icon | Hyper-V is active: see "Before you start" |
+| `Bringing machine 'okd-helper' up with 'hyperv' provider` or "SSH authentication failed" | Vagrant used Hyper-V. Run `vagrant destroy -f`, delete the `.vagrant` folder, install VirtualBox, turn Hyper-V off, reboot, then `vagrant up --provider=virtualbox` |
 | Script can't download the ISO | From Windows: `Test-NetConnection 192.168.56.10 -Port 8080`; on the helper: `sudo firewall-cmd --list-all-zones` |
 | OKD VM has no internet (VirtualBox) | On the helper: `sysctl net.ipv4.ip_forward` should be 1, `sudo firewall-cmd --zone=public --query-masquerade` should say yes, `sudo firewall-cmd --info-policy=okd-lab-egress` should exist |
 | VM boots the ISO again after installing | Remove the ISO from the VM's optical drive (VirtualBox: Settings → Storage; Workstation: Settings → CD/DVD) and restart the VM |
