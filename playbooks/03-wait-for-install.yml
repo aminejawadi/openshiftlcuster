@@ -14,6 +14,8 @@
       ansible.builtin.command: >-
         {{ bin_dir }}/openshift-install agent wait-for bootstrap-complete
         --dir {{ install_dir }} --log-level info
+      environment:
+        PATH: "{{ bin_dir }}:{{ lookup('env', 'PATH') }}"
       async: 3600
       poll: 30
       changed_when: false
@@ -22,6 +24,8 @@
       ansible.builtin.command: >-
         {{ bin_dir }}/openshift-install agent wait-for install-complete
         --dir {{ install_dir }} --log-level info
+      environment:
+        PATH: "{{ bin_dir }}:{{ lookup('env', 'PATH') }}"
       async: 5400
       poll: 30
       changed_when: false

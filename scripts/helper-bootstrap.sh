@@ -11,7 +11,9 @@ HELPER_OCTET="${HELPER_OCTET:-10}"
 echo "==> Installing Ansible"
 dnf -y -q install ansible-core
 # EL9 ships ansible-core 2.14; ansible.posix 1.6.1 is the newest release that supports it.
-ansible-galaxy collection install "ansible.posix:1.6.1" -p /usr/share/ansible/collections >/dev/null
+if [ ! -d /usr/share/ansible/collections/ansible_collections/ansible/posix ]; then
+  ansible-galaxy collection install "ansible.posix:1.6.1" -p /usr/share/ansible/collections >/dev/null
+fi
 
 virt="$(systemd-detect-virt || true)"
 if [ "$virt" = "oracle" ]; then
