@@ -68,17 +68,21 @@ function Invoke-Main {
     }
 
     # Candidate helper addresses: <subnet>.10 on every VirtualBox host-only and
-    # VMware VMnet adapter on this PC. The first one that serves the script wins.
+    # VMware VMnet adapter on this PC, then the VirtualBox default. The first one
+    # that serves the script wins. Match on the adapter *description* as well as
+    # the name: Windows often names a VirtualBox adapter just "Ethernet 3".
     if ($HelperIp) {
         $candidates = @($HelperIp)
     } else {
-        $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-            Where-Object { $_.InterfaceAlias -like '*VirtualBox*' -or $_.InterfaceAlias -like '*VMnet*' } |
-            ForEach-Object { (($_.IPAddress -split '\.')[0..2] -join '.') + ".$HelperOctet" } |
-            Select-Object -Unique)
-        if (-not $candidates) {
-            throw 'No VirtualBox host-only or VMware VMnet adapter found on this PC.'
-        }
+        $adapters = @(Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.InterfaceDescription -like '*VirtualBox*' -or $_.Name -like '*VirtualBox*' -or
+                $_.InterfaceDescription -like '*VMware*'     -or $_.Name -like '*VMnet*'
+            })
+        $fromAdapters = @($adapters | ForEach-Object {
+                Get-NetIPAddress -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+            } | ForEach-Object { (($_.IPAddress -split '\.')[0..2] -join '.') + ".$HelperOctet" })
+        $candidates = @($fromAdapters + "192.168.56.$HelperOctet" | Select-Object -Unique)
     }
 
     $found = $null
