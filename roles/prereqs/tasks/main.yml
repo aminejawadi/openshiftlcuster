@@ -83,6 +83,15 @@
     force: true
   loop: [oc, kubectl, openshift-install]
 
+- name: Point oc at the cluster in every helper shell
+  ansible.builtin.blockinfile:
+    path: "{{ lookup('env', 'HOME') }}/.bashrc"
+    marker: "# {mark} OKD lab"
+    create: true
+    mode: "0644"
+    block: |
+      export KUBECONFIG={{ install_dir }}/auth/kubeconfig
+
 - name: Report installer version
   ansible.builtin.command: "{{ bin_dir }}/openshift-install version"
   register: _version

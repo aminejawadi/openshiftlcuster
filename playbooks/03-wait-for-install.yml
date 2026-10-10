@@ -67,6 +67,18 @@
       register: _status
       changed_when: false
 
+    # Keep a copy of the admin login next to the project (on Vagrant that is the
+    # Windows project folder), so it survives the helper being rebuilt.
+    # .okd/ is in .gitignore: these files give full admin access.
+    # A plain cp: VirtualBox/VMware shared folders reject chmod, which a copy
+    # module call with modes would try. A failed backup must not fail the install.
+    - name: Back up the admin kubeconfig and kubeadmin password to the project folder
+      ansible.builtin.shell: >-
+        mkdir -p "{{ project_root }}/.okd/auth" &&
+        cp -f "{{ install_dir }}"/auth/* "{{ project_root }}/.okd/auth/"
+      changed_when: true
+      ignore_errors: true
+
     - name: Read the kubeadmin password
       ansible.builtin.slurp:
         src: "{{ install_dir }}/auth/kubeadmin-password"
@@ -79,4 +91,5 @@
           - "Console:  https://console-openshift-console.apps.{{ cluster_domain }}"
           - "User:     kubeadmin"
           - "Password: {{ _password.content | b64decode | trim }}"
-          - "CLI:      export KUBECONFIG={{ install_dir }}/auth/kubeconfig"
+          - "CLI:      oc get nodes   (on the helper; KUBECONFIG is set in ~/.bashrc)"
+          - "Backup:   .okd/auth/ in the project folder (keep it private)"

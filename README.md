@@ -6,6 +6,12 @@ community distribution of OpenShift) on your own PC, with the
 Workstation Pro**. It is sized for a 64 GB machine with a 6-core /
 12-thread CPU such as the Ryzen 5 7500F.
 
+**Status:** installed end to end on Windows 11 + VirtualBox 7 with OKD
+`5.0.0-okd-scos.1` (single node, 8 vCPU / 32 GB) over a slow (~4 Mbit/s)
+connection. Expect 1–2 hours on a fast connection and most of a night on a slow
+one; the playbooks wait and retry on their own. The VMware Workstation path
+uses the same playbooks but has not had a full run yet.
+
 ## How it works
 
 On a single node the API and the router both run on the node, so there is
@@ -140,8 +146,7 @@ $env:OKD_HELPER_BOX = "bento/almalinux-9"     # use another box if Rocky is unav
 On the helper, use the cluster with:
 
 ```bash
-export KUBECONFIG=~/okd/install/auth/kubeconfig
-oc get nodes
+oc get nodes        # KUBECONFIG is already set for you on the helper
 ```
 
 ## Option B: create the helper by hand
