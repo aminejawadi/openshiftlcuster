@@ -60,6 +60,9 @@ sno_disk_gb: 150
 # Fixed MAC so the installer can match the static IP config to the VM's NIC.
 # VirtualBox's prefix is 08:00:27; VMware's static range is 00:50:56:00:00:00-3F:FF:FF.
 sno_mac: "{{ '08:00:27:2A:00:50' if hypervisor == 'virtualbox' else '00:50:56:2A:00:50' }}"
+# Pod MTU on the node: OVN-Kubernetes uses the node MTU (1500) minus 100.
+# On VirtualBox the helper splits packets it forwards to the node to this size.
+node_pod_mtu: 1400
 # First NIC name inside the VM: PCI slot 3 on VirtualBox, slot 160 (vmxnet3) on VMware.
 sno_interface: "{{ 'enp0s3' if hypervisor == 'virtualbox' else 'ens160' }}"
 

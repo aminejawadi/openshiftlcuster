@@ -1,0 +1,8 @@
+#!/bin/sh
+# {{ ansible_managed }}
+# VirtualBox NAT ignores the TCP MSS, so split packets forwarded to the OKD node
+# to {{ node_pod_mtu }} bytes (the pod MTU). Otherwise pods can't complete TLS handshakes.
+[ "$1" = "{{ lab_interface }}" ] || exit 0
+case "$2" in
+  up|dhcp4-change|reapply) ip route replace {{ sno_ip }}/32 dev "$1" mtu {{ node_pod_mtu }} ;;
+esac

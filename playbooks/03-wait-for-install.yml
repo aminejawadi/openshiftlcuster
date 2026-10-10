@@ -31,6 +31,24 @@
       delay: 30
       changed_when: false
 
+    # OKD's OperatorHub lists Red Hat's catalogs too, but their images need a real
+    # Red Hat pull secret. Without one, the node retries the pulls forever and
+    # eats the bandwidth the rest of the install needs.
+    - name: Turn off the Red Hat operator catalogs (they need a Red Hat pull secret)
+      ansible.builtin.command: >-
+        {{ bin_dir }}/oc patch operatorhub cluster --type merge -p
+        '{"spec":{"sources":[{"name":"redhat-operators","disabled":true},
+        {"name":"certified-operators","disabled":true},
+        {"name":"redhat-marketplace","disabled":true},
+        {"name":"community-operators","disabled":true}]}}'
+      environment: "{{ oc_env }}"
+      register: _catalogs
+      until: _catalogs.rc == 0
+      retries: 20
+      delay: 30
+      changed_when: "'patched' in _catalogs.stdout and 'no change' not in _catalogs.stdout"
+      when: disable_redhat_catalogs | default(true) | bool
+
     - name: Wait for the installation to complete
       ansible.builtin.command: >-
         {{ bin_dir }}/openshift-install agent wait-for install-complete

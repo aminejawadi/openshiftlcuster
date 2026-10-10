@@ -260,6 +260,7 @@ VMnet8 subnet.
 | `Bringing machine 'okd-helper' up with 'hyperv' provider` or "SSH authentication failed" | Vagrant used Hyper-V. Run `vagrant destroy -f`, delete the `.vagrant` folder, install VirtualBox, turn Hyper-V off, reboot, then `vagrant up --provider=virtualbox` |
 | Script can't download the ISO | From Windows: `Test-NetConnection 192.168.56.10 -Port 8080`; on the helper: `sudo firewall-cmd --list-all-zones` |
 | OKD VM has no internet (VirtualBox) | On the helper: `sysctl net.ipv4.ip_forward` should be 1, `sudo firewall-cmd --zone=public --query-masquerade` should say yes, `sudo firewall-cmd --info-policy=okd-lab-egress` should exist |
+| `machine-config` Degraded: "controllerconfig is not completed", controller log shows `TLS handshake timeout` to quay.io (VirtualBox) | Pods can't receive the oversized packets VirtualBox's NAT sends. The helper must split packets to the node: on the helper, `ip route show 192.168.56.50` should end in `mtu 1400`; if not, rerun `vagrant provision --provision-with okd` |
 | VM boots the ISO again after installing | Remove the ISO from the VM's optical drive (VirtualBox: Settings → Storage; Workstation: Settings → CD/DVD) and restart the VM |
 | Install stalls | On the helper: `ssh core@192.168.56.50` then `journalctl -u agent -f` (before reboot) or `sudo crictl ps` (after) |
 | Names don't resolve on the node | On the helper: `dig @192.168.56.10 api-int.okd.lab.internal` |

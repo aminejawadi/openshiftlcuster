@@ -80,3 +80,25 @@
   ansible.builtin.command: firewall-cmd --reload
   when: _policy.rc != 0
   changed_when: true
+
+# VirtualBox's NAT re-creates every TCP connection itself and ignores the MSS the
+# client announces: replies come back in 1440-byte segments. The node's own traffic
+# copes (MTU 1500), but pods have MTU {{ node_pod_mtu }}, so OVN drops those packets and
+# pods can't finish a TLS handshake (machine-config then stays Degraded with
+# "TLS handshake timeout" to quay.io). The NAT doesn't set "don't fragment", so the
+# helper can split anything it forwards to the node down to the pod MTU.
+# A NetworkManager dispatcher hook keeps the route across reboots and across
+# Vagrant re-configuring the host-only adapter.
+- name: Install the hook that limits packets forwarded to the node
+  become: true
+  ansible.builtin.template:
+    src: 90-okd-node-mtu.j2
+    dest: /etc/NetworkManager/dispatcher.d/90-okd-node-mtu
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Limit packets forwarded to the node now
+  become: true
+  ansible.builtin.command: ip route replace {{ sno_ip }}/32 dev {{ lab_interface }} mtu {{ node_pod_mtu }}
+  changed_when: false
