@@ -10,24 +10,37 @@
         timeout: 2700
         sleep: 15
 
-    - name: Wait for bootstrap to complete (up to 60 minutes)
+    - name: How to watch the install
+      ansible.builtin.debug:
+        msg: >-
+          The next two steps can run for hours on a slow connection and print
+          nothing while they wait. To watch the installer's own messages, run in
+          another terminal: vagrant ssh -c 'tail -f {{ install_dir }}/.openshift_install.log'
+
+    # Each openshift-install wait-for gives up after its own timeout (40 minutes
+    # for install-complete) even though the cluster keeps installing, so retry.
+    - name: Wait for bootstrap to complete
       ansible.builtin.command: >-
         {{ bin_dir }}/openshift-install agent wait-for bootstrap-complete
         --dir {{ install_dir }} --log-level info
       environment:
         PATH: "{{ bin_dir }}:{{ lookup('env', 'PATH') }}"
-      async: 3600
-      poll: 30
+      register: _bootstrap
+      until: _bootstrap.rc == 0
+      retries: "{{ wait_bootstrap_retries | default(3) }}"
+      delay: 30
       changed_when: false
 
-    - name: Wait for the installation to complete (up to 90 minutes)
+    - name: Wait for the installation to complete
       ansible.builtin.command: >-
         {{ bin_dir }}/openshift-install agent wait-for install-complete
         --dir {{ install_dir }} --log-level info
       environment:
         PATH: "{{ bin_dir }}:{{ lookup('env', 'PATH') }}"
-      async: 5400
-      poll: 30
+      register: _install
+      until: _install.rc == 0
+      retries: "{{ wait_install_retries | default(6) }}"   # about 4.5 hours in total
+      delay: 30
       changed_when: false
 
     - name: Show cluster status
